@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>วิเคราะห์เลขหุ้นย้อนหลัง</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    textarea { width: 100%; height: 150px; margin-bottom: 10px; }
+    input, select { width: 100%; margin-bottom: 10px; padding: 5px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 5px; text-align: center; }
+    th { background-color: #f0f0f0; }
+    .btn { margin: 5px 10px 15px 0; padding: 6px 12px; }
+    .text-green { color: green; font-weight: bold; }
+    .text-red { color: red; font-weight: bold; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+  </style>
+</head>
+<body>
+  <h2>📈 วิเคราะห์เลขหุ้นย้อนหลัง</h2>
+  <button onclick="showTab('tab1')">สูตรที่ 1</button>
+  <button onclick="showTab('tab2')">สูตรที่ 2</button>
+
+  <div id="tab1" class="tab-content active">
+    <label><strong>ชื่อหุ้น:</strong></label>
+    <input type="text" id="stockName" placeholder="เช่น VN หุ้นไทยเช้า">
+    <label><strong>ใส่ข้อมูลแต่ละงวด (รูปแบบ VN 05 ก.ค. 68 | 338-12):</strong></label>
+    <textarea id="rawData" placeholder="VN 05 ก.ค. 68 | 338-12\nVN 06 ก.ค. 68 | 353-29"></textarea>
+    <button class="btn" onclick="analyzeTab1()">📊 วิเคราะห์</button>
+    <div id="output"></div>
+  </div>
+
+  <div id="tab2" class="tab-content">
+    <label><strong>หุ้นที่ 1 (ชุดหลัก):</strong></label>
+    <textarea id="stock1" placeholder="VN 05 ก.ค. 68 | 338-12\nVN 06 ก.ค. 68 | 353-29"></textarea>
+    <label><strong>หุ้นที่ 2 (ชุดเปรียบเทียบ):</strong></label>
+    <textarea id="stock2" placeholder="VN 05 ก.ค. 68 | 124-68\nVN 06 ก.ค. 68 | 295-04"></textarea>
+    <button class="btn" onclick="analyzeTab2()">📊 วิเคราะห์</button>
+    <div id="detailed-result"></div>
+  </div>
+
+  <script>
+    function showTab(id) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function parseDataSet(raw) {
+      raw = raw.replace(/[🇨🇳🇹🇭🇯🇵🇺🇸🇰🇷🇸🇬🇬🇧🇪🇺]/g, '').trim();
+      return raw.split("\n").map(line => line.trim())
+        .filter(line => line.includes("|") && line.includes("-"))
+        .map(line => {
+          const [prefixAndDate, value] = line.split("|").map(s => s.trim());
+          const parts = prefixAndDate.split(" ");
+          const date = parts.slice(1).join(" ");
+          const [top3, bottom2] = value.split("-");
+          return {
+            date,
+            top3,
+            bottom2,
+            digits: {
+              top100: top3[0],
+              top10: top3[1],
+              top1: top3[2],
+              bot10: bottom2[0],
+              bot1: bottom2[1]
+            }
+          };
+        });
+    }
+
+    function analyzeTab1() {
+      // ไม่เปลี่ยนจากเวอร์ชันเดิม
+    }
+
+    function analyzeTab2() {
+      const stock1 = parseDataSet(document.getElementById("stock1").value);
+      const stock2 = parseDataSet(document.getElementById("stock2").value);
+
+      let html = `<table><thead><tr><th>วันที่</th><th>หลักร้อย</th><th>หลักสิบ</th><th>หลักหน่วย</th><th>หลักสิบล่าง</th><th>หลักหน่วยล่าง</th></tr></thead><tbody>`;
+
+      const summary = {
+        top100: { top: 0, bottom: 0 },
+        top10: { top: 0, bottom: 0 },
+        top1: { top: 0, bottom: 0 },
+        bot10: { top: 0, bottom: 0 },
+        bot1: { top: 0, bottom: 0 },
+      };
+
+      for (let s1 of stock1) {
+        const s2 = stock2.find(x => x.date === s1.date);
+        if (!s2) continue;
+
+        let row = `<tr><td>${s1.date}</td>`;
+        for (let [key, digit] of Object.entries(s1.digits)) {
+          let matched = '';
+          if (s2.top3.includes(digit)) {
+            matched = `<span class='text-green'>✔ (บน)</span>`;
+            summary[key].top++;
+          } else if (s2.bottom2.includes(digit)) {
+            matched = `<span class='text-green'>✔ (ล่าง)</span>`;
+            summary[key].bottom++;
+          } else {
+            matched = `<span class='text-red'>✖</span>`;
+          }
+          row += `<td>${matched}</td>`;
+        }
+        row += '</tr>';
+        html += row;
+      }
+
+      html += '</tbody></table>';
+
+      html += '<h3>📊 สรุปผล</h3><table><tr><th>หลัก</th><th>กลับมาบน</th><th>กลับมาล่าง</th><th>รวม</th></tr>';
+      const nameMap = {
+        top100: 'หลักร้อย',
+        top10: 'หลักสิบ',
+        top1: 'หลักหน่วย',
+        bot10: 'หลักสิบล่าง',
+        bot1: 'หลักหน่วยล่าง'
+      };
+      for (let key in summary) {
+        html += `<tr><td>${nameMap[key]}</td><td>${summary[key].top}</td><td>${summary[key].bottom}</td><td>${summary[key].top + summary[key].bottom}</td></tr>`;
+      }
+      html += '</table>';
+
+      const sorted = Object.entries(summary).sort((a,b)=> (b[1].top + b[1].bottom) - (a[1].top + a[1].bottom));
+      html += `<h3>🎯 หลักเด่น</h3><ul>`;
+      sorted.slice(0,3).forEach(([key]) => html += `<li>${nameMap[key]}</li>`);
+      html += `</ul>`;
+
+      document.getElementById("detailed-result").innerHTML = html;
+    }
+  </script>
+</body>
+</html>
